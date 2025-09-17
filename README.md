@@ -117,7 +117,7 @@ Data/INCLUDE/
 
 1. **Create `Landmarks` folders** inside each category folder
 2. **Create subfolders** for each sign name inside `Landmarks`
-3. **Run landmark extraction** to generate `.npy` files from videos
+3. **Run 01_Landmarks_preprocessing.ipynb** to generate `.npy` files from videos
 
 ### Example Commands:
 ```bash
@@ -148,7 +148,7 @@ python model_xgb.py
 
 ### Key Files
 - `model_xgb.py` - Main XGBoost training and evaluation script
-- `landmark_extraction.py` - MediaPipe landmark extraction from videos
+- `01_Landmarks_preprocessing.ipynb` - MediaPipe landmark extraction from videos
 - `README.md` - This documentation
 
 ### Expected Output
