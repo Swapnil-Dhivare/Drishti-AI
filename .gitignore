@@ -1,0 +1,8 @@
+
+#Data folder 
+Data/
+
+#Notebook checkups
+.ipynb_checkpoints/
+
+torch
