@@ -55,5 +55,5 @@ def predict_sign(npy_path):
     return le.inverse_transform([pred_enc])[0]
 
 # Example usage
-npy_file = Path("../Data/INCLUDE/Adjectives/Landmarks/new/MVI_9423.npy")
+npy_file = Path("../Data/INCLUDE/People/Landmarks/Son/MVI_5072.npy")
 print("Predicted sign:", predict_sign(npy_file))
