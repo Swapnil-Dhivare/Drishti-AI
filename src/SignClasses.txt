@@ -1,0 +1,58 @@
+Means_of_Transportation: 
+	Car
+	Bus
+	Plane
+	Train
+	train ticket
+	Transportation
+	Truck
+	
+People:
+	Daughter
+	Father
+	Husband
+	King
+	Mother
+	Parent
+	Son
+	Wife
+	
+Places:
+	Bank
+	City
+	Ground
+	Hospital
+	House
+	India
+	Library
+	Location
+	Market
+	Restaurant
+	Store or Shop
+	Street or Road
+	Temple
+	Train Station
+	
+Adjectives:
+	big large
+	cold
+	cool
+	dry
+	fast
+	healthy
+	hot
+	long
+	narrow
+	new
+	short
+	sick
+	slow
+	small little
+	tall
+	warm
+	wide
+Animals:
+	Animal
+	Horse
+	
+

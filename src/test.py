@@ -15,9 +15,13 @@ scaler_feats = pipeline["scaler_feats"]
 le = pipeline["label_enc"]
 
 
+
+
 standard_dim = scaler_frames.mean_.shape[0]
 
 def predict_sign(npy_path):
+ 
+
     seq = np.load(npy_path)
     if seq.shape[1] < standard_dim:
         pad = np.zeros((seq.shape[0], standard_dim), dtype=np.float32)
@@ -55,5 +59,5 @@ def predict_sign(npy_path):
     return le.inverse_transform([pred_enc])[0]
 
 # Example usage
-npy_file = Path("../Data/INCLUDE/People/Landmarks/Son/MVI_5072.npy")
+npy_file = Path("../Data/INCLUDE/Home/Landmarks/Paint/MVI_4413.npy")
 print("Predicted sign:", predict_sign(npy_file))
