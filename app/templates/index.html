@@ -5,254 +5,295 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Drishti AI - Sign Language Recognition</title>
     <style>
+        :root {
+            --primary-color: #3B82F6; --primary-dark: #2563EB;
+            --bg-color: #111827; --surface-color: #1F2937;
+            --text-color: #F9FAFB; --text-muted: #9CA3AF;
+            --border-color: #374151;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f0f2f5;
-            color: #1c1e21;
-            line-height: 1.6;
+            font-family: 'Inter', sans-serif; background-color: var(--bg-color);
+            color: var(--text-color); line-height: 1.6;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { font-size: 3rem; color: #1877f2; }
-        .header p { font-size: 1.2rem; color: #606770; }
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            align-items: start;
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 2rem; }
+        .main-nav {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem 0; border-bottom: 1px solid var(--border-color);
         }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary-color); }
+        .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+        .nav-links a {
+            text-decoration: none; color: var(--text-muted); font-weight: 500;
+            transition: color 0.2s ease; padding: 0.5rem;
+        }
+        .nav-links a.active, .nav-links a:hover { color: var(--primary-color); }
+        .page { display: none; padding-top: 3rem; }
+        .page.active { display: block; }
+        .page-header { text-align: center; margin-bottom: 2.5rem; }
+        .page-header h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+        .page-header p { font-size: 1.125rem; color: var(--text-muted); max-width: 600px; margin: 0 auto; }
         .card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
-            padding: 24px;
+            background-color: var(--surface-color); border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
         }
-        .camera-section .video-container {
-            position: relative;
-            background-color: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            min-height: 360px; /* Placeholder height */
+        #drop-zone {
+            border: 2px dashed var(--border-color); border-radius: 0.5rem;
+            padding: 3rem; text-align: center; cursor: pointer; transition: all 0.2s ease;
         }
-        .camera-section img { display: block; width: 100%; height: auto; }
-        .camera-controls { display: flex; justify-content: center; gap: 15px; }
+        #drop-zone.dragover { border-color: var(--primary-color); background-color: rgba(59, 130, 246, 0.1); }
+        #drop-zone p { color: var(--text-muted); margin-bottom: 1rem; }
         .btn {
-            background-color: #1877f2; color: white;
-            padding: 10px 20px; border: none; border-radius: 6px;
-            font-size: 1rem; font-weight: bold; cursor: pointer;
+            background-color: var(--primary-color); color: var(--text-color);
+            padding: 0.75rem 1.5rem; border: none; border-radius: 0.375rem;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
             transition: background-color 0.2s;
         }
-        .btn:hover { background-color: #166fe5; }
-        .btn:disabled { background-color: #a0a0a0; cursor: not-allowed; }
-        .btn.stop { background-color: #fa383e; }
-        .btn.stop:hover { background-color: #e02c32; }
-        
-        .upload-section #drop-zone {
-            border: 2px dashed #ccd0d5; border-radius: 8px;
-            padding: 40px 20px; text-align: center; cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        #drop-zone.dragover { background-color: #e7f3ff; }
+        .btn:hover { background-color: var(--primary-dark); }
+        .btn:disabled { background-color: #4B5563; cursor: not-allowed; }
+        .btn.stop { background-color: #EF4444; } .btn.stop:hover { background-color: #DC2626; }
         #file-input { display: none; }
-
-        .results-section h2, .upload-section h2 {
-            font-size: 1.5rem; color: #1c1e21;
-            margin-bottom: 20px; text-align: center;
-        }
-        #prediction-card, #upload-result-card {
-            background-color: #f0f2f5; padding: 15px;
-            border-radius: 6px; margin-top: 20px;
-        }
-        .main-prediction { text-align: center; }
-        .main-prediction .sign {
-            font-size: 2.5rem; font-weight: bold;
-            color: #1877f2;
-        }
-        .main-prediction .confidence { font-size: 1rem; color: #606770; }
-        
-        #loader { display: none; text-align: center; padding: 20px; }
+        #loader { display: none; text-align: center; padding: 2rem; }
         .spinner {
-            border: 4px solid #f3f3f3; border-top: 4px solid #1877f2;
-            border-radius: 50%; width: 30px; height: 30px;
-            animation: spin 1s linear infinite; margin: 0 auto 10px;
+            border: 4px solid var(--border-color); border-top-color: var(--primary-color);
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 0 auto 1rem;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        #error-message { color: #fa383e; font-weight: bold; display: none; margin-top: 15px; text-align: center;}
-        
-        @media (max-width: 900px) {
-            .main-content { grid-template-columns: 1fr; }
-        }
+        #upload-result-card { display: none; padding: 2rem; margin-top: 2rem; }
+        .main-prediction { text-align: center; }
+        .main-prediction .sign { font-size: 3rem; font-weight: 800; color: var(--primary-color); }
+        .main-prediction .confidence { color: var(--text-muted); }
+        #error-message { color: #F87171; text-align: center; display: none; margin-top: 1rem; }
+        .live-container { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+        .video-container { background-color: #000; border-radius: 0.5rem; overflow: hidden; aspect-ratio: 16/9; }
+        #video-stream { display: block; width: 100%; height: 100%; object-fit: cover; }
+        .live-controls { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; }
+        .live-prediction-display { text-align: center; padding: 2rem; }
+        .live-prediction-display .sign { font-size: 4rem; line-height: 1; }
+        #learn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+        .learn-card { padding: 0; overflow: hidden; }
+        .learn-card video { width: 100%; display: block; background-color: #000; aspect-ratio: 16/9;}
+        .learn-card h3 { padding: 1rem; font-size: 1.25rem; text-align: center; }
+        .no-video { text-align: center; padding: 2rem; color: var(--text-muted); }
+        .about-content { padding: 2rem; }
+        .about-content h2 { font-size: 1.75rem; color: var(--primary-color); margin-bottom: 1rem; }
+        .about-content p { margin-bottom: 1.5rem; color: var(--text-muted); }
+        .about-content a { color: var(--primary-color); text-decoration: none; }
+        .about-content a:hover { text-decoration: underline; }
+        @media (max-width: 900px) { .live-container { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Drishti AI</h1>
-            <p>Real-time & File-based Sign Language Recognition</p>
-        </div>
-        <div class="main-content">
-            <div class="card camera-section">
-                <h2>Live Camera Feed</h2>
-                <div class="video-container">
-                    <img id="video-stream" src="" alt="Camera feed will display here.">
+        <nav class="main-nav">
+            <div class="logo">Drishti AI</div>
+            <ul class="nav-links">
+                <li><a href="#home" class="nav-link">Home</a></li>
+                <li><a href="#live" class="nav-link">Live</a></li>
+                <li><a href="#learn" class="nav-link">Learn</a></li>
+                <li><a href="#about" class="nav-link">About</a></li>
+            </ul>
+        </nav>
+        <main>
+            <section id="home-page" class="page">
+                <div class="page-header">
+                    <h1>Upload & Analyze</h1>
+                    <p>Upload a pre-recorded video file to get a detailed sign language prediction.</p>
                 </div>
-                <div class="camera-controls">
+                <div class="card">
+                    <div id="drop-zone">
+                        <input type="file" id="file-input" accept=".mp4,.mov,.avi,.mkv,.wmv">
+                        <p>Drag & drop a video file here</p>
+                        <p style="color: var(--text-muted); margin-bottom: 1rem;">— or —</p>
+                        <button type="button" class="btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                    </div>
+                    <div id="loader">
+                        <div class="spinner"></div>
+                        <p>Analyzing video, this may take a moment...</p>
+                    </div>
+                    <div id="error-message"></div>
+                    <div id="upload-result-card">
+                        <div class="main-prediction">
+                            <div class="sign" id="file-prediction">--</div>
+                            <div class="confidence">Confidence: <span id="file-confidence"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section id="live-page" class="page">
+                <div class="page-header"><h1>Live Prediction</h1><p>Use your webcam for real-time sign recognition.</p></div>
+                <div class="live-container">
+                    <div class="video-container"><img id="video-stream" src="" alt="Live camera feed"></div>
+                    <div class="card live-prediction-display">
+                        <h2>Current Sign</h2>
+                        <div class="main-prediction"><div class="sign" id="live-prediction">---</div></div>
+                    </div>
+                </div>
+                <div class="live-controls">
                     <button id="start-cam" class="btn">Start Camera</button>
                     <button id="stop-cam" class="btn stop" disabled>Stop Camera</button>
                 </div>
-                <div id="prediction-card" style="display: none;">
-                    <div class="main-prediction">
-                        <div class="sign" id="live-prediction">--</div>
-                        <div class="confidence">Live Prediction</div>
-                    </div>
+            </section>
+            <section id="learn-page" class="page">
+                <div class="page-header"><h1>Learn the Signs</h1><p>Review video examples for the signs our model recognizes.</p></div>
+                <div id="learn-grid"></div>
+            </section>
+            <section id="about-page" class="page">
+                <div class="page-header"><h1>About Drishti AI</h1><p>Breaking communication barriers through technology.</p></div>
+                <div class="card about-content">
+                    <h2>The Project</h2>
+                    <p>Drishti AI is an MVP designed to recognize Indian Sign Language (ISL) from video. It uses MediaPipe for landmark extraction and an XGBoost model for classification.</p>
+                    <h2>Technology Stack</h2>
+                    <p><strong>Backend:</strong> Python, Flask, OpenCV, MediaPipe, Scikit-learn, XGBoost<br><strong>Frontend:</strong> HTML, CSS, JavaScript</p>
+                    <h2>Creator</h2>
+                    <p>This project was created by <strong>Swapnil Dhivare</strong>.</p>
+                    <a href="https://github.com/swapdxd/Drishti-AI" target="_blank" class="btn">View on GitHub</a>
                 </div>
-            </div>
-
-            <div class="card upload-section">
-                <h2>Upload Video File</h2>
-                <div id="drop-zone">
-                    <input type="file" id="file-input" accept=".mp4,.mov,.avi,.mkv,.wmv">
-                    <p>Drag & drop a video file here or click to select</p>
-                </div>
-                <div id="loader">
-                    <div class="spinner"></div>
-                    <p>Analyzing video... This can take a moment.</p>
-                </div>
-                <div id="error-message"></div>
-                <div id="upload-result-card" style="display: none;">
-                     <div class="main-prediction">
-                        <div class="sign" id="file-prediction">--</div>
-                        <div class="confidence">Confidence: <span id="file-confidence"></span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            </section>
+        </main>
     </div>
 
     <script>
-        const startCamBtn = document.getElementById('start-cam');
-        const stopCamBtn = document.getElementById('stop-cam');
-        const videoStream = document.getElementById('video-stream');
-        const livePrediction = document.getElementById('live-prediction');
-        const predictionCard = document.getElementById('prediction-card');
-        
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const loader = document.getElementById('loader');
-        const uploadResultCard = document.getElementById('upload-result-card');
-        const filePrediction = document.getElementById('file-prediction');
-        const fileConfidence = document.getElementById('file-confidence');
-        const errorMessage = document.getElementById('error-message');
+        document.addEventListener('DOMContentLoaded', () => {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const pages = document.querySelectorAll('.page');
+            let cameraActive = false;
+            let predictionInterval;
 
-        let predictionInterval;
+            // --- SPA Navigation ---
+            function showPage(pageId) {
+                pages.forEach(page => page.classList.remove('active'));
+                const activePage = document.getElementById(`${pageId}-page`);
+                if (activePage) activePage.classList.add('active');
+                
+                navLinks.forEach(link => link.classList.toggle('active', link.hash === `#${pageId}`));
 
-        // --- Camera Functions ---
-        startCamBtn.addEventListener('click', () => {
-            videoStream.src = `/video_feed?t=${new Date().getTime()}`;
-            startCamBtn.disabled = true;
-            stopCamBtn.disabled = false;
-            predictionCard.style.display = 'block';
-            getLivePrediction();
-            predictionInterval = setInterval(getLivePrediction, 750); // Poll every 0.75 seconds
-        });
-
-        stopCamBtn.addEventListener('click', () => {
-            videoStream.src = "";
-            startCamBtn.disabled = false;
-            stopCamBtn.disabled = true;
-            clearInterval(predictionInterval);
-            livePrediction.textContent = '--';
-            predictionCard.style.display = 'none';
-        });
-
-        async function getLivePrediction() {
-            try {
-                const response = await fetch('/api/prediction');
-                const data = await response.json();
-                if (data && data.predicted_sign) {
-                    livePrediction.textContent = data.predicted_sign;
-                }
-            } catch (error) {
-                console.error("Error fetching live prediction:", error);
-                livePrediction.textContent = 'Error';
+                if (pageId === 'learn') loadLearnData();
+                if (pageId !== 'live' && cameraActive) stopCamera();
             }
-        }
-        
-        // --- File Upload Functions ---
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length) handleFile(files[0]);
-        });
+            navLinks.forEach(link => link.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = e.target.hash; }));
+            window.addEventListener('hashchange', () => showPage(window.location.hash.substring(1) || 'home'));
+            showPage(window.location.hash.substring(1) || 'home');
 
-        dropZone.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+            // --- Live Page ---
+            const startCamBtn = document.getElementById('start-cam');
+            const stopCamBtn = document.getElementById('stop-cam');
+            const videoStream = document.getElementById('video-stream');
+            const livePrediction = document.getElementById('live-prediction');
 
-        function handleFile(file) {
-            resetUI();
-            loader.style.display = 'block';
-            const formData = new FormData();
-            formData.append('video', file);
-
-            fetch('/api/analyze', { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                if (data.task_id) {
-                    pollForResult(data.task_id);
-                } else {
-                    throw new Error(data.error || 'Failed to start analysis.');
-                }
-            })
-            .catch(error => {
-                loader.style.display = 'none';
-                showError(`Upload failed: ${error.message}`);
+            startCamBtn.addEventListener('click', () => {
+                videoStream.src = `/video_feed?t=${new Date().getTime()}`;
+                cameraActive = true;
+                startCamBtn.disabled = true;
+                stopCamBtn.disabled = false;
+                predictionInterval = setInterval(getLivePrediction, 750);
             });
-        }
-        
-        function pollForResult(taskId) {
-            const interval = setInterval(() => {
-                fetch(`/api/result/${taskId}`)
+
+            async function stopCamera() {
+                if (!cameraActive) return;
+                await fetch('/stop_feed', { method: 'POST' });
+                videoStream.src = "";
+                cameraActive = false;
+                startCamBtn.disabled = false;
+                stopCamBtn.disabled = true;
+                clearInterval(predictionInterval);
+                livePrediction.textContent = '---';
+            }
+            stopCamBtn.addEventListener('click', stopCamera);
+
+            async function getLivePrediction() {
+                if (!cameraActive) return;
+                try {
+                    const response = await fetch('/api/prediction');
+                    const data = await response.json();
+                    if (data && data.predicted_sign) livePrediction.textContent = data.predicted_sign;
+                } catch (error) { console.error("Error fetching prediction:", error); }
+            }
+
+            // --- Home Page (File Upload) ---
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const loader = document.getElementById('loader');
+            const uploadResultCard = document.getElementById('upload-result-card');
+            const filePrediction = document.getElementById('file-prediction');
+            const fileConfidence = document.getElementById('file-confidence');
+            const errorMessage = document.getElementById('error-message');
+
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+            function handleFile(file) {
+                resetUploadUI();
+                loader.style.display = 'block';
+                const formData = new FormData();
+                formData.append('video', file);
+                fetch('/api/analyze', { method: 'POST', body: formData })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'completed') {
-                        clearInterval(interval);
-                        loader.style.display = 'none';
-                        displayResults(data.result);
-                    } else if (data.status === 'failed') {
-                        clearInterval(interval);
-                        loader.style.display = 'none';
-                        showError(`Analysis failed: ${data.error}`);
-                    }
+                    if (data.task_id) { pollForResult(data.task_id); } 
+                    else { throw new Error(data.error || 'Failed to start analysis.'); }
                 })
-                .catch(error => {
-                    clearInterval(interval);
-                    loader.style.display = 'none';
-                    showError(`Network error while checking result: ${error.message}`);
-                });
-            }, 2500);
-        }
+                .catch(error => { loader.style.display = 'none'; showError(error.message); });
+            }
+            
+            function pollForResult(taskId) {
+                const interval = setInterval(() => {
+                    fetch(`/api/result/${taskId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'completed') {
+                            clearInterval(interval);
+                            loader.style.display = 'none';
+                            displayUploadResults(data.result);
+                        } else if (data.status === 'failed') {
+                            clearInterval(interval);
+                            loader.style.display = 'none';
+                            showError(`Analysis failed: ${data.error}`);
+                        }
+                    })
+                    .catch(error => { clearInterval(interval); loader.style.display = 'none'; showError(`Network error.`); });
+                }, 2500);
+            }
 
-        function displayResults(data) {
-            filePrediction.textContent = data.predicted_sign;
-            fileConfidence.textContent = `${(data.confidence * 100).toFixed(2)}%`;
-            uploadResultCard.style.display = 'block';
-        }
-
-        function resetUI() {
-            errorMessage.style.display = 'none';
-            uploadResultCard.style.display = 'none';
-        }
-
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-        }
+            function displayUploadResults(data) {
+                filePrediction.textContent = data.predicted_sign;
+                fileConfidence.textContent = `${(data.confidence * 100).toFixed(2)}%`;
+                uploadResultCard.style.display = 'block';
+            }
+            function resetUploadUI() { errorMessage.style.display = 'none'; uploadResultCard.style.display = 'none'; }
+            function showError(message) { errorMessage.textContent = message; errorMessage.style.display = 'block'; }
+            
+            // --- Learn Page ---
+            const learnGrid = document.getElementById('learn-grid');
+            let learnDataLoaded = false;
+            async function loadLearnData() {
+                if (learnDataLoaded) return;
+                learnGrid.innerHTML = '<div class="spinner"></div>';
+                try {
+                    const response = await fetch('/api/learn-data');
+                    const data = await response.json();
+                    learnGrid.innerHTML = '';
+                    if (data.error) throw new Error(data.error);
+                    data.forEach(item => {
+                        const card = document.createElement('div');
+                        card.className = 'card learn-card';
+                        let videoHTML = `<div class="no-video">No video example</div>`;
+                        if (item.video_url) {
+                            videoHTML = `<video src="${item.video_url}" controls muted loop preload="metadata"></video>`;
+                        }
+                        card.innerHTML = `${videoHTML}<h3>${item.name}</h3>`;
+                        learnGrid.appendChild(card);
+                    });
+                    learnDataLoaded = true;
+                } catch (error) {
+                    learnGrid.innerHTML = `<p style="color: var(--text-muted); text-align: center;">Could not load learning data. Add example videos to the 'app/static/learn_videos' folder.</p>`;
+                }
+            }
+        });
     </script>
 </body>
 </html>

@@ -38,29 +38,29 @@ class CameraPredictor:
             refine_face_landmarks=True, min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
-        # self.mp_drawing is not needed for the clean feed
 
         # --- Camera and Real-time Prediction State ---
         self.camera = None
-        self.landmark_buffer = deque(maxlen=30)  # Buffer for ~1 second of frames at 30fps
+        self.camera_active = False
+        self.landmark_buffer = deque(maxlen=30)
         self.last_prediction_time = 0
-        self.current_prediction = {"predicted_sign": "---", "confidence": 0.0}
-        self.motion_threshold = 0.01 # Threshold to detect hand movement
-        self.confidence_threshold = 0.65 # Only show predictions above 65% confidence
+        self.current_sign = "---"
+        self.motion_threshold = 0.001
+        self.confidence_threshold = 0.50
 
-    # --- Core Logic ---
+    def get_class_names(self):
+        """Returns the list of class names the model was trained on."""
+        return sorted(self.le.classes_)
 
     def _extract_landmarks(self, frame):
-        """Internal method to extract 1040 features from a single frame."""
+        """Internal method to extract landmark features from a single frame."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.holistic.process(rgb)
-        
         lm = []
         for hand_landmarks in [results.right_hand_landmarks, results.left_hand_landmarks]:
             if hand_landmarks:
                 for p in hand_landmarks.landmark: lm.extend([p.x, p.y])
             else: lm.extend([0.0] * 42)
-        
         if results.face_landmarks:
             face_landmarks = results.face_landmarks.landmark
             for i in range(478):
@@ -68,137 +68,98 @@ class CameraPredictor:
                 else: lm.extend([0.0, 0.0])
         else:
             lm.extend([0.0] * 956)
-            
         return np.array(lm, dtype=np.float32)
 
-    def _create_aggregated_feature_vector(self, sequence):
-        """Internal method identical to training script's feature creation."""
+    def create_advanced_feature_vector(self, sequence):
+        """Creates the advanced feature vector with temporal information."""
         seq_scaled = self.scaler_frames.transform(sequence)
         seq_pca = self.pca.transform(seq_scaled)
-        
-        mean=seq_pca.mean(axis=0); std=seq_pca.std(axis=0); mn=seq_pca.min(axis=0); mx=seq_pca.max(axis=0)
-        
+        mean=seq_pca.mean(axis=0); std=seq_pca.std(axis=0)
+        start_pos = seq_pca[0]; mid_pos = seq_pca[len(seq_pca) // 2]; end_pos = seq_pca[-1]
         if seq_pca.shape[0] > 1:
             diffs = np.diff(seq_pca, axis=0)
             v_mean=diffs.mean(axis=0); v_std=diffs.std(axis=0)
-            energy = np.sum(np.abs(diffs)) / seq_pca.shape[0]
         else:
-            v_mean=np.zeros(self.pca.n_components_); v_std=np.zeros(self.pca.n_components_); energy=0.0
-            
-        try:
-            right = sequence[:, :42].reshape(-1, 21, 2).mean(axis=1)
-            left = sequence[:, 42:84].reshape(-1, 21, 2).mean(axis=1)
-            dists = np.linalg.norm(right - left, axis=1)
-            dist_mean = np.mean(dists); dist_std = np.std(dists) if dists.size > 1 else 0.0
-        except:
-            dist_mean, dist_std = 0.0, 0.0
-            
-        return np.concatenate([mean, std, mn, mx, v_mean, v_std, [dist_mean, dist_std], [energy]])
-
-    # --- Camera-Specific Methods ---
+            v_mean=np.zeros(self.pca.n_components_); v_std=np.zeros(self.pca.n_components_)
+        return np.concatenate([mean, std, start_pos, mid_pos, end_pos, v_mean, v_std])
 
     def get_frame(self):
-        """Generator function to yield clean camera frames for the web feed."""
-        if not self.camera or not self.camera.isOpened():
-            self.camera = cv2.VideoCapture(0)
-            if not self.camera.isOpened():
-                logger.error("Could not open camera.")
-                return
-
-        while True:
+        """Generator function to yield camera frames with diagnostics."""
+        self.camera = cv2.VideoCapture(0)
+        if not self.camera.isOpened():
+            logger.error("Could not open camera.")
+            return
+        self.camera_active = True
+        logger.info("Camera started.")
+        while self.camera_active:
             success, frame = self.camera.read()
-            if not success:
-                self.camera.release()
-                break
-            
+            if not success: break
             frame = cv2.flip(frame, 1)
             landmarks = self._extract_landmarks(frame)
             self.landmark_buffer.append(landmarks)
-            
-            # --- NO DRAWING ---
-            # The landmarks are extracted for prediction but not drawn on the frame.
-            
+            motion_magnitude = np.mean(np.std(np.array(self.landmark_buffer)[:, :84], axis=0))
+            color = (0, 255, 0) if motion_magnitude >= self.motion_threshold else (0, 0, 255)
+            cv2.putText(frame, f"Motion: {motion_magnitude:.4f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            cv2.putText(frame, f"Prediction: {self.current_sign}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
             ret, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
             yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        
         self.camera.release()
+        self.camera = None
+        logger.info("Camera released.")
 
+    def release_camera(self):
+        """Sets the flag to stop the camera feed generator."""
+        self.camera_active = False
 
     def predict_from_buffer(self):
-        """Predicts from the live landmark buffer with motion and confidence checks."""
-        if time.time() - self.last_prediction_time < 0.5:
-            return self.current_prediction
+        """Predicts from the live buffer using stateful logic."""
+        if time.time() - self.last_prediction_time < 0.75:
+            return {"predicted_sign": self.current_sign}
 
         if len(self.landmark_buffer) < self.landmark_buffer.maxlen:
-            return {"predicted_sign": "Collecting...", "confidence": 0.0}
+            return {"predicted_sign": "Collecting..."}
 
         try:
             sequence = np.array(self.landmark_buffer)
-            
-            # --- MOTION DETECTION ---
-            # Get hand landmarks (first 84 features)
-            hand_landmarks = sequence[:, :84]
-            # Calculate standard deviation of hand positions
-            motion_magnitude = np.mean(np.std(hand_landmarks, axis=0))
-            
+            motion_magnitude = np.mean(np.std(sequence[:, :84], axis=0))
             if motion_magnitude < self.motion_threshold:
-                self.current_prediction = {"predicted_sign": "---", "confidence": 0.0}
-                self.last_prediction_time = time.time()
-                return self.current_prediction
-
-            # --- PREDICTION LOGIC ---
-            feature_vector = self._create_aggregated_feature_vector(sequence)
-            final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
-            proba = self.clf.predict_proba(final_features)[0]
-            
-            conf = np.max(proba)
-            sign = self.le.inverse_transform([np.argmax(proba)])[0]
-            
-            # --- CONFIDENCE THRESHOLD ---
-            if conf >= self.confidence_threshold:
-                 self.current_prediction = {"predicted_sign": sign, "confidence": float(conf)}
+                self.current_sign = "---"
             else:
-                 self.current_prediction = {"predicted_sign": "---", "confidence": 0.0}
-                 
+                feature_vector = self.create_advanced_feature_vector(sequence)
+                final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
+                proba = self.clf.predict_proba(final_features)[0]
+                conf = np.max(proba)
+                if conf >= self.confidence_threshold:
+                    sign = self.le.inverse_transform([np.argmax(proba)])[0]
+                    self.current_sign = sign
             self.last_prediction_time = time.time()
         except Exception as e:
             logger.error(f"Error in buffer prediction: {e}")
-            self.current_prediction = {"predicted_sign": "Error", "confidence": 0.0}
+            self.current_sign = "Error"
+        
+        return {"predicted_sign": self.current_sign}
 
-        return self.current_prediction
-
-    # --- File-Specific Method (Unchanged) ---
     def predict_from_video(self, video_path: str, threshold: float = 0.3):
-        # This reuses the same internal logic as the camera
-        cap = cv2.VideoCapture(video_path)
         landmarks_list = []
+        cap = cv2.VideoCapture(video_path)
         while True:
             ret, frame = cap.read()
             if not ret: break
             landmarks = self._extract_landmarks(frame)
             landmarks_list.append(landmarks)
         cap.release()
-
-        if not landmarks_list:
-            raise RuntimeError("No landmarks detected in video.")
-
+        if not landmarks_list: raise RuntimeError("No landmarks detected in video.")
         sequence = np.stack(landmarks_list)
         if sequence.shape[1] != self.standard_dim:
             raise ValueError(f"Landmark dimension mismatch. Expected {self.standard_dim}, got {sequence.shape[1]}")
-
-        feature_vector = self._create_aggregated_feature_vector(sequence)
+        feature_vector = self.create_advanced_feature_vector(sequence)
         final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
         proba = self.clf.predict_proba(final_features)[0]
-        
         conf = np.max(proba)
         sign = self.le.inverse_transform([np.argmax(proba)])[0]
-        
         return {
             "predicted_sign": sign if conf >= threshold else "UNCERTAIN",
             "confidence": float(conf),
-            "alternatives": [
-                {"class": self.le.inverse_transform([i])[0], "probability": float(p)}
-                for i, p in sorted(enumerate(proba), key=lambda x: x[1], reverse=True)[:5]
-            ]
+            "alternatives": [{"class": self.le.classes_[i], "probability": float(p)} for i, p in sorted(enumerate(proba), key=lambda x: x[1], reverse=True)[:5]]
         }
