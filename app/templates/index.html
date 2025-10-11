@@ -7,112 +7,125 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f4f7f6;
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+            color: #1c1e21;
+            line-height: 1.6;
         }
-        .container { max-width: 700px; width: 100%; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .header h1 { font-size: 3rem; color: #2c3e50; }
-        .header p { font-size: 1.2rem; color: #7f8c8d; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { font-size: 3rem; color: #1877f2; }
+        .header p { font-size: 1.2rem; color: #606770; }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
         .card {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            padding: 40px;
-            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
+            padding: 24px;
         }
-        #drop-zone {
-            border: 3px dashed #dfe6e9;
-            border-radius: 10px;
-            padding: 60px 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        .camera-section .video-container {
             position: relative;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            min-height: 360px; /* Placeholder height */
         }
-        #drop-zone.dragover { background-color: #f0f4f8; border-color: #3498db; }
-        #drop-zone p { font-size: 1.1rem; color: #7f8c8d; }
-        #file-input { display: none; }
+        .camera-section img { display: block; width: 100%; height: auto; }
+        .camera-controls { display: flex; justify-content: center; gap: 15px; }
         .btn {
-            background-color: #3498db;
-            color: white;
-            padding: 12px 25px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            display: inline-block;
-            margin-top: 20px;
+            background-color: #1877f2; color: white;
+            padding: 10px 20px; border: none; border-radius: 6px;
+            font-size: 1rem; font-weight: bold; cursor: pointer;
+            transition: background-color 0.2s;
         }
-        .btn:hover { background-color: #2980b9; }
-        #result-area { margin-top: 30px; text-align: left; }
-        #loader { display: none; text-align: center; }
+        .btn:hover { background-color: #166fe5; }
+        .btn:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .btn.stop { background-color: #fa383e; }
+        .btn.stop:hover { background-color: #e02c32; }
+        
+        .upload-section #drop-zone {
+            border: 2px dashed #ccd0d5; border-radius: 8px;
+            padding: 40px 20px; text-align: center; cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #drop-zone.dragover { background-color: #e7f3ff; }
+        #file-input { display: none; }
+
+        .results-section h2, .upload-section h2 {
+            font-size: 1.5rem; color: #1c1e21;
+            margin-bottom: 20px; text-align: center;
+        }
+        #prediction-card, #upload-result-card {
+            background-color: #f0f2f5; padding: 15px;
+            border-radius: 6px; margin-top: 20px;
+        }
+        .main-prediction { text-align: center; }
+        .main-prediction .sign {
+            font-size: 2.5rem; font-weight: bold;
+            color: #1877f2;
+        }
+        .main-prediction .confidence { font-size: 1rem; color: #606770; }
+        
+        #loader { display: none; text-align: center; padding: 20px; }
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
+            border: 4px solid #f3f3f3; border-top: 4px solid #1877f2;
+            border-radius: 50%; width: 30px; height: 30px;
+            animation: spin 1s linear infinite; margin: 0 auto 10px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .prediction-card {
-            background-color: #ecf0f1;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 20px;
-            display: none;
+        
+        #error-message { color: #fa383e; font-weight: bold; display: none; margin-top: 15px; text-align: center;}
+        
+        @media (max-width: 900px) {
+            .main-content { grid-template-columns: 1fr; }
         }
-        .main-prediction { text-align: center; margin-bottom: 20px; }
-        .main-prediction span { font-size: 2.5rem; font-weight: bold; color: #2c3e50; }
-        .confidence { font-size: 1rem; color: #7f8c8d; }
-        .alternatives h3 {
-            font-size: 1.1rem; color: #34495e;
-            margin-bottom: 10px; border-bottom: 2px solid #bdc3c7;
-            padding-bottom: 5px;
-        }
-        .alternatives ul { list-style: none; }
-        .alternatives li {
-            display: flex; justify-content: space-between;
-            padding: 8px 0; border-bottom: 1px solid #dfe6e9;
-        }
-        #error-message { color: #e74c3c; font-weight: bold; display: none; margin-top: 20px;}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>Drishti AI</h1>
-            <p>Sign Language Recognition from Video</p>
+            <p>Real-time & File-based Sign Language Recognition</p>
         </div>
-        <div class="card">
-            <div id="drop-zone">
-                <input type="file" id="file-input" accept="video/*">
-                <p>Drag & drop a video file here</p>
-                <p>or</p>
-                <button type="button" class="btn" onclick="document.getElementById('file-input').click()">Select File</button>
+        <div class="main-content">
+            <div class="card camera-section">
+                <h2>Live Camera Feed</h2>
+                <div class="video-container">
+                    <img id="video-stream" src="" alt="Camera feed will display here.">
+                </div>
+                <div class="camera-controls">
+                    <button id="start-cam" class="btn">Start Camera</button>
+                    <button id="stop-cam" class="btn stop" disabled>Stop Camera</button>
+                </div>
+                <div id="prediction-card" style="display: none;">
+                    <div class="main-prediction">
+                        <div class="sign" id="live-prediction">--</div>
+                        <div class="confidence">Live Prediction</div>
+                    </div>
+                </div>
             </div>
-            <div id="result-area">
+
+            <div class="card upload-section">
+                <h2>Upload Video File</h2>
+                <div id="drop-zone">
+                    <input type="file" id="file-input" accept=".mp4,.mov,.avi,.mkv,.wmv">
+                    <p>Drag & drop a video file here or click to select</p>
+                </div>
                 <div id="loader">
                     <div class="spinner"></div>
-                    <p>Analyzing video... This may take a moment.</p>
+                    <p>Analyzing video... This can take a moment.</p>
                 </div>
                 <div id="error-message"></div>
-                <div class="prediction-card" id="prediction-card">
-                    <div class="main-prediction">
-                        <span id="predicted-sign"></span>
-                        <p class="confidence">Confidence: <span id="confidence-score"></span></p>
-                    </div>
-                    <div class="alternatives">
-                        <h3>Top Alternatives</h3>
-                        <ul id="alternatives-list"></ul>
+                <div id="upload-result-card" style="display: none;">
+                     <div class="main-prediction">
+                        <div class="sign" id="file-prediction">--</div>
+                        <div class="confidence">Confidence: <span id="file-confidence"></span></div>
                     </div>
                 </div>
             </div>
@@ -120,53 +133,77 @@
     </div>
 
     <script>
+        const startCamBtn = document.getElementById('start-cam');
+        const stopCamBtn = document.getElementById('stop-cam');
+        const videoStream = document.getElementById('video-stream');
+        const livePrediction = document.getElementById('live-prediction');
+        const predictionCard = document.getElementById('prediction-card');
+        
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const loader = document.getElementById('loader');
-        const predictionCard = document.getElementById('prediction-card');
+        const uploadResultCard = document.getElementById('upload-result-card');
+        const filePrediction = document.getElementById('file-prediction');
+        const fileConfidence = document.getElementById('file-confidence');
         const errorMessage = document.getElementById('error-message');
 
-        // --- Event Listeners ---
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+        let predictionInterval;
+
+        // --- Camera Functions ---
+        startCamBtn.addEventListener('click', () => {
+            videoStream.src = `/video_feed?t=${new Date().getTime()}`;
+            startCamBtn.disabled = true;
+            stopCamBtn.disabled = false;
+            predictionCard.style.display = 'block';
+            getLivePrediction();
+            predictionInterval = setInterval(getLivePrediction, 750); // Poll every 0.75 seconds
         });
+
+        stopCamBtn.addEventListener('click', () => {
+            videoStream.src = "";
+            startCamBtn.disabled = false;
+            stopCamBtn.disabled = true;
+            clearInterval(predictionInterval);
+            livePrediction.textContent = '--';
+            predictionCard.style.display = 'none';
+        });
+
+        async function getLivePrediction() {
+            try {
+                const response = await fetch('/api/prediction');
+                const data = await response.json();
+                if (data && data.predicted_sign) {
+                    livePrediction.textContent = data.predicted_sign;
+                }
+            } catch (error) {
+                console.error("Error fetching live prediction:", error);
+                livePrediction.textContent = 'Error';
+            }
+        }
+        
+        // --- File Upload Functions ---
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const files = e.dataTransfer.files;
-            if (files.length) {
-                fileInput.files = files;
-                handleFile(files[0]);
-            }
+            if (files.length) handleFile(files[0]);
         });
 
         dropZone.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) {
-                handleFile(fileInput.files[0]);
-            }
-        });
+        fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
 
         function handleFile(file) {
-            if (!file.type.startsWith('video/')) {
-                showError('Please select a valid video file.');
-                return;
-            }
-            
             resetUI();
             loader.style.display = 'block';
-
             const formData = new FormData();
             formData.append('video', file);
 
-            // 1. Start analysis and get a task ID
             fetch('/api/analyze', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(data => {
                 if (data.task_id) {
-                    // 2. Poll for the result using the task ID
                     pollForResult(data.task_id);
                 } else {
                     throw new Error(data.error || 'Failed to start analysis.');
@@ -192,35 +229,24 @@
                         loader.style.display = 'none';
                         showError(`Analysis failed: ${data.error}`);
                     }
-                    // If status is 'processing', do nothing and wait for the next poll
                 })
                 .catch(error => {
                     clearInterval(interval);
                     loader.style.display = 'none';
                     showError(`Network error while checking result: ${error.message}`);
                 });
-            }, 2500); // Check every 2.5 seconds
+            }, 2500);
         }
 
         function displayResults(data) {
-            document.getElementById('predicted-sign').textContent = data.predicted_sign;
-            document.getElementById('confidence-score').textContent = `${(data.confidence * 100).toFixed(2)}%`;
-            
-            const alternativesList = document.getElementById('alternatives-list');
-            alternativesList.innerHTML = '';
-            
-            data.alternatives.slice(0, 5).forEach(alt => {
-                const li = document.createElement('li');
-                li.innerHTML = `<span>${alt.class}</span><span>${(alt.probability * 100).toFixed(2)}%</span>`;
-                alternativesList.appendChild(li);
-            });
-            
-            predictionCard.style.display = 'block';
+            filePrediction.textContent = data.predicted_sign;
+            fileConfidence.textContent = `${(data.confidence * 100).toFixed(2)}%`;
+            uploadResultCard.style.display = 'block';
         }
 
         function resetUI() {
             errorMessage.style.display = 'none';
-            predictionCard.style.display = 'none';
+            uploadResultCard.style.display = 'none';
         }
 
         function showError(message) {

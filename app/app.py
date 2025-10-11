@@ -1,7 +1,7 @@
 import os
 import uuid
 import threading
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from werkzeug.utils import secure_filename
 from camera_predictor import CameraPredictor
 
@@ -17,7 +17,7 @@ UPLOAD_FOLDER = 'temp_uploads'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# --- Background Task Management ---
+# --- Background Task Management for File Uploads ---
 tasks = {}
 
 def process_video_task(task_id, video_path):
@@ -48,14 +48,26 @@ def home():
     """Renders the main HTML page."""
     return render_template('index.html')
 
+# --- Camera Feed Routes ---
+@app.route('/video_feed')
+def video_feed():
+    """Streams video frames from the camera."""
+    if predictor is None: return "Model not loaded", 500
+    return Response(predictor.get_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/api/prediction')
+def get_prediction():
+    """Gets the latest prediction from the live camera feed buffer."""
+    if predictor is None: return "Model not loaded", 500
+    return jsonify(predictor.predict_from_buffer())
+
+# --- File Upload Routes (with background processing) ---
 @app.route('/api/analyze', methods=['POST'])
 def start_analysis():
     """Receives a video, starts background processing, and returns a task ID."""
-    if predictor is None:
-        return jsonify({"error": "Model is not loaded."}), 500
+    if predictor is None: return jsonify({"error": "Model is not loaded."}), 500
 
-    if 'video' not in request.files:
-        return jsonify({"error": "No video file found."}), 400
+    if 'video' not in request.files: return jsonify({"error": "No video file found."}), 400
     
     file = request.files['video']
     if file.filename == '' or not allowed_file(file.filename):
@@ -75,19 +87,19 @@ def start_analysis():
 
 @app.route('/api/result/<task_id>', methods=['GET'])
 def get_result(task_id):
-    """Allows the frontend to poll for the result of a task."""
+    """Allows the frontend to poll for the result of a file upload task."""
     task = tasks.get(task_id)
-    if not task:
-        return jsonify({"error": "Invalid Task ID"}), 404
+    if not task: return jsonify({"error": "Invalid Task ID"}), 404
     
+    # Once complete or failed, remove the task from memory after sending result
     if task['status'] == 'completed':
         result = task.get('result')
-        tasks.pop(task_id, None)  # Clean up memory
+        tasks.pop(task_id, None) 
         return jsonify({"status": "completed", "result": result})
     
-    elif task['status'] == 'failed':
+    if task['status'] == 'failed':
         error = task.get('error', 'Unknown error')
-        tasks.pop(task_id, None)  # Clean up memory
+        tasks.pop(task_id, None)
         return jsonify({"status": "failed", "error": error})
         
     return jsonify({"status": "processing"})
@@ -95,13 +107,7 @@ def get_result(task_id):
 
 if __name__ == '__main__':
     if predictor is None:
-        print("\n" + "="*60)
-        print("❌ ERROR: FAILED TO START FLASK SERVER.")
-        print("   The model at 'models/pipeline_xgb.pkl' could not be loaded.")
-        print("="*60 + "\n")
+        print("\n" + "="*60 + "\n❌ ERROR: FAILED TO START FLASK SERVER.\n   Model could not be loaded.\n" + "="*60 + "\n")
     else:
-        print("\n" + "="*60)
-        print("🚀 Starting Drishti AI Flask Server")
-        print(f"   Access in your browser: http://127.0.0.1:5000")
-        print("="*60 + "\n")
+        print("\n" + "="*60 + "\n🚀 Starting Drishti AI Flask Server\n   Access in your browser: http://127.0.0.1:5000\n" + "="*60 + "\n")
         app.run(debug=True, host='0.0.0.0')
