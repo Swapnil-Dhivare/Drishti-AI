@@ -1,9 +1,11 @@
+#For app.py
 Flask
-gunicorn
 joblib
 numpy
 opencv-python-headless
-mediapipe
-scikit-learn
-xgboost
 werkzeug
+scikit-learn
+
+#If you want to create the model from scratch:
+#mediapipe
+#xgboost
