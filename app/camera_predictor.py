@@ -39,21 +39,16 @@ class CameraPredictor:
             min_tracking_confidence=0.5
         )
 
-        # --- Camera and Real-time Prediction State ---
-        self.camera = None
-        self.camera_active = False
+        # --- Real-time Prediction State ---
         self.landmark_buffer = deque(maxlen=30)
-        self.last_prediction_time = 0
         self.current_sign = "---"
-        self.motion_threshold = 0.001
+        self.motion_threshold = 0.0015
         self.confidence_threshold = 0.50
 
     def get_class_names(self):
-        """Returns the list of class names the model was trained on."""
         return sorted(self.le.classes_)
 
     def _extract_landmarks(self, frame):
-        """Internal method to extract landmark features from a single frame."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.holistic.process(rgb)
         lm = []
@@ -71,7 +66,6 @@ class CameraPredictor:
         return np.array(lm, dtype=np.float32)
 
     def create_advanced_feature_vector(self, sequence):
-        """Creates the advanced feature vector with temporal information."""
         seq_scaled = self.scaler_frames.transform(sequence)
         seq_pca = self.pca.transform(seq_scaled)
         mean=seq_pca.mean(axis=0); std=seq_pca.std(axis=0)
@@ -83,62 +77,40 @@ class CameraPredictor:
             v_mean=np.zeros(self.pca.n_components_); v_std=np.zeros(self.pca.n_components_)
         return np.concatenate([mean, std, start_pos, mid_pos, end_pos, v_mean, v_std])
 
-    def get_frame(self):
-        """Generator function to yield camera frames with diagnostics."""
-        self.camera = cv2.VideoCapture(0)
-        if not self.camera.isOpened():
-            logger.error("Could not open camera.")
-            return
-        self.camera_active = True
-        logger.info("Camera started.")
-        while self.camera_active:
-            success, frame = self.camera.read()
-            if not success: break
-            frame = cv2.flip(frame, 1)
-            landmarks = self._extract_landmarks(frame)
-            self.landmark_buffer.append(landmarks)
-            motion_magnitude = np.mean(np.std(np.array(self.landmark_buffer)[:, :84], axis=0))
-            color = (0, 255, 0) if motion_magnitude >= self.motion_threshold else (0, 0, 255)
-            cv2.putText(frame, f"Motion: {motion_magnitude:.4f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-            cv2.putText(frame, f"Prediction: {self.current_sign}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        self.camera.release()
-        self.camera = None
-        logger.info("Camera released.")
+    def predict_from_live_frame(self, frame):
+        """Processes a single frame from the browser and updates the prediction state."""
+        landmarks = self._extract_landmarks(frame)
+        self.landmark_buffer.append(landmarks)
 
-    def release_camera(self):
-        """Sets the flag to stop the camera feed generator."""
-        self.camera_active = False
-
-    def predict_from_buffer(self):
-        """Predicts from the live buffer using stateful logic."""
-        if time.time() - self.last_prediction_time < 0.75:
-            return {"predicted_sign": self.current_sign}
+        motion_magnitude = 0.0
+        motion_detected = False
 
         if len(self.landmark_buffer) < self.landmark_buffer.maxlen:
-            return {"predicted_sign": "Collecting..."}
+            return {"predicted_sign": "Collecting...", "diagnostics": {"motion_magnitude": 0, "motion_detected": False}}
 
         try:
             sequence = np.array(self.landmark_buffer)
             motion_magnitude = np.mean(np.std(sequence[:, :84], axis=0))
-            if motion_magnitude < self.motion_threshold:
+            motion_detected = motion_magnitude >= self.motion_threshold
+
+            if not motion_detected:
                 self.current_sign = "---"
             else:
                 feature_vector = self.create_advanced_feature_vector(sequence)
                 final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
                 proba = self.clf.predict_proba(final_features)[0]
                 conf = np.max(proba)
+                
                 if conf >= self.confidence_threshold:
                     sign = self.le.inverse_transform([np.argmax(proba)])[0]
                     self.current_sign = sign
-            self.last_prediction_time = time.time()
+            
+            return {
+                "predicted_sign": self.current_sign,
+                "diagnostics": { "motion_magnitude": motion_magnitude, "motion_detected": motion_detected }
+            }
         except Exception as e:
-            logger.error(f"Error in buffer prediction: {e}")
-            self.current_sign = "Error"
-        
-        return {"predicted_sign": self.current_sign}
+            return {"predicted_sign": "Error"}
 
     def predict_from_video(self, video_path: str, threshold: float = 0.3):
         landmarks_list = []
@@ -163,3 +135,4 @@ class CameraPredictor:
             "confidence": float(conf),
             "alternatives": [{"class": self.le.classes_[i], "probability": float(p)} for i, p in sorted(enumerate(proba), key=lambda x: x[1], reverse=True)[:5]]
         }
+

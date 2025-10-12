@@ -4,11 +4,12 @@ import threading
 from flask import Flask, request, jsonify, render_template, Response, url_for
 import logging
 import atexit
+import cv2
+import numpy as np
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
-# THE FIX: The dot makes this a relative import, which is required by Gunicorn
 from .camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
@@ -42,16 +43,16 @@ except Exception as e:
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-# Health route
-@app.route("/healthz")
-def health_check():
-    return "ok", 200
-
 
 # --- Web & API Routes ---
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/healthz')
+def healthz():
+    """Render's required health check endpoint."""
+    return "OK", 200
 
 @app.route('/api/learn-data')
 def get_learn_data():
@@ -66,22 +67,24 @@ def get_learn_data():
         })
     return jsonify(learn_data)
 
-@app.route('/video_feed')
-def video_feed():
-    if predictor is None: return "Model not loaded", 500
-    return Response(predictor.get_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/stop_feed', methods=['POST'])
-def stop_feed():
-    if predictor:
-        predictor.release_camera()
-    return jsonify({"status": "Camera feed stopped"})
-
-@app.route('/api/prediction')
-def get_prediction():
+# --- NEW Camera Frame Prediction Route ---
+@app.route('/api/predict_frame', methods=['POST'])
+def predict_frame():
     if predictor is None: return jsonify({"predicted_sign": "Model Error"}), 500
-    return jsonify(predictor.predict_from_buffer())
+    file = request.files.get('frame')
+    if not file: return jsonify({"error": "No frame data received."}), 400
+    try:
+        img_bytes = file.read()
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # The JS now sends a pre-flipped image, so no need to flip here.
+        result = predictor.predict_from_live_frame(frame)
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"Error processing frame: {e}")
+        return jsonify({"predicted_sign": "Processing Error"}), 500
 
+# --- File Upload Routes ---
 @app.route('/api/analyze', methods=['POST'])
 def start_analysis():
     if predictor is None: return jsonify({"error": "Model is not loaded."}), 500
@@ -112,13 +115,13 @@ def get_result(task_id):
         return jsonify({"status": "failed", "error": error})
     return jsonify({"status": "processing"})
 
+# --- Cleanup ---
 def cleanup():
-    if predictor:
-        predictor.release_camera()
     for fname in os.listdir(UPLOAD_FOLDER):
         try: os.remove(os.path.join(UPLOAD_FOLDER, fname))
         except: pass
 atexit.register(cleanup)
+
 
 if __name__ == '__main__':
     if predictor is None:
