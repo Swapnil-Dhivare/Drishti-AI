@@ -9,8 +9,6 @@ import joblib
 from pathlib import Path
 import logging
 import warnings
-from collections import deque
-import time
 
 warnings.filterwarnings('ignore', category=UserWarning)
 logging.basicConfig(level=logging.INFO)
@@ -77,16 +75,20 @@ class CameraPredictor:
         """Performs end-to-end prediction on a video file (uploaded or recorded)."""
         landmarks_list = []
         cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise RuntimeError(f"Could not open video file: {video_path}")
+            
         while True:
             ret, frame = cap.read()
             if not ret: break
             landmarks = self._extract_landmarks(frame)
             landmarks_list.append(landmarks)
         cap.release()
-        if not landmarks_list: raise RuntimeError("No landmarks detected in video.")
+        
+        if not landmarks_list: raise RuntimeError("No landmarks were detected in the video.")
         sequence = np.stack(landmarks_list)
+        
         if sequence.shape[1] != self.standard_dim:
-            # This handles any lingering dimension mismatches gracefully
             logger.warning(f"Conforming landmark dimension from {sequence.shape[1]} to {self.standard_dim}.")
             if sequence.shape[1] > self.standard_dim:
                 sequence = sequence[:, :self.standard_dim]
@@ -100,6 +102,7 @@ class CameraPredictor:
         proba = self.clf.predict_proba(final_features)[0]
         conf = np.max(proba)
         sign = self.le.inverse_transform([np.argmax(proba)])[0]
+        
         return {
             "predicted_sign": sign if conf >= threshold else "UNCERTAIN",
             "confidence": float(conf),

@@ -1,7 +1,7 @@
 import os
 import uuid
 import threading
-from flask import Flask, request, jsonify, render_template, Response, url_for
+from flask import Flask, request, jsonify, render_template, url_for
 import logging
 import atexit
 
@@ -16,7 +16,7 @@ app = Flask(__name__)
 # --- Configuration ---
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 UPLOAD_FOLDER = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv'}
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'webm'} # Added webm for browser recordings
 LEARN_VIDEOS_FOLDER = os.path.join(app.root_path, 'static', 'learn_videos')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(LEARN_VIDEOS_FOLDER, exist_ok=True)
@@ -47,14 +47,10 @@ def allowed_file(filename):
 def home():
     return render_template('index.html')
 
-# --- THE FIX: Add a Health Check Route for Render ---
 @app.route('/healthz')
 def healthz():
-    """Render's required health check endpoint."""
-    if predictor:
-        return "OK", 200
-    # If the model failed to load, the service is unhealthy
-    return "Model not loaded", 500
+    """Render's required health check endpoint for stability."""
+    return "OK", 200
 
 @app.route('/api/learn-data')
 def get_learn_data():
@@ -69,22 +65,7 @@ def get_learn_data():
         })
     return jsonify(learn_data)
 
-@app.route('/video_feed')
-def video_feed():
-    if predictor is None: return "Model not loaded", 500
-    return Response(predictor.get_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/stop_feed', methods=['POST'])
-def stop_feed():
-    if predictor:
-        predictor.release_camera()
-    return jsonify({"status": "Camera feed stopped"})
-
-@app.route('/api/prediction')
-def get_prediction():
-    if predictor is None: return jsonify({"predicted_sign": "Model Error"}), 500
-    return jsonify(predictor.predict_from_buffer())
-
+# --- UNIFIED Analysis Route for Uploads and Recordings ---
 @app.route('/api/analyze', methods=['POST'])
 def start_analysis():
     if predictor is None: return jsonify({"error": "Model is not loaded."}), 500
@@ -92,13 +73,17 @@ def start_analysis():
     file = request.files['video']
     if file.filename == '' or not allowed_file(file.filename):
         return jsonify({"error": "Invalid or no file selected."}), 400
+    
     filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
     temp_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(temp_path)
+    
     task_id = str(uuid.uuid4())
     tasks[task_id] = {'status': 'processing'}
+    
     thread = threading.Thread(target=process_video_task, args=(task_id, temp_path))
     thread.start()
+    
     return jsonify({"task_id": task_id})
 
 @app.route('/api/result/<task_id>', methods=['GET'])
@@ -115,9 +100,8 @@ def get_result(task_id):
         return jsonify({"status": "failed", "error": error})
     return jsonify({"status": "processing"})
 
+# --- Cleanup ---
 def cleanup():
-    if predictor:
-        predictor.release_camera()
     for fname in os.listdir(UPLOAD_FOLDER):
         try: os.remove(os.path.join(UPLOAD_FOLDER, fname))
         except: pass

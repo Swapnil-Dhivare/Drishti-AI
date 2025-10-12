@@ -35,10 +35,10 @@
         .btn:disabled { background-color: #4B5563; cursor: not-allowed; }
         .btn.stop { background-color: var(--record-color); } .btn.stop:hover { background-color: #DC2626; }
         #file-input { display: none; }
-        #loader { display: none; text-align: center; padding: 2rem; }
+        #loader, #live-loader { display: none; text-align: center; padding: 2rem; }
         .spinner { border: 4px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #upload-result-card { display: none; padding: 2rem; margin-top: 2rem; }
+        #upload-result-card, #live-result-card { display: none; padding: 2rem; margin-top: 1rem; }
         .main-prediction { text-align: center; }
         .main-prediction .sign { font-size: 3rem; font-weight: 800; color: var(--primary-color); }
         .main-prediction .confidence { color: var(--text-muted); }
@@ -96,6 +96,7 @@
             window.addEventListener('hashchange', () => showPage(window.location.hash.substring(1) || 'home'));
             showPage(window.location.hash.substring(1) || 'home');
 
+            // --- Live Page (Client-Side Recording) ---
             const startCamBtn = document.getElementById('start-cam');
             const stopCamBtn = document.getElementById('stop-cam');
             const videoElement = document.getElementById('video-element');
@@ -129,19 +130,27 @@
             startCamBtn.addEventListener('click', startCamera);
 
             function stopCamera() {
-                if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
-                mediaRecorder.stop();
-                videoStream.getTracks().forEach(track => track.stop());
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                } else {
+                    if(videoStream) videoStream.getTracks().forEach(track => track.stop());
+                    cameraActive = false;
+                    startCamBtn.disabled = false;
+                    stopCamBtn.disabled = true;
+                    videoPlaceholder.style.display = 'block';
+                }
+            }
+            stopCamBtn.addEventListener('click', stopCamera);
+            
+            function handleRecordingStop() {
+                if(videoStream) videoStream.getTracks().forEach(track => track.stop());
                 videoElement.srcObject = null;
                 cameraActive = false;
                 startCamBtn.disabled = false;
                 stopCamBtn.disabled = true;
                 recIndicator.style.display = 'none';
                 videoPlaceholder.style.display = 'block';
-            }
-            stopCamBtn.addEventListener('click', stopCamera);
-            
-            function handleRecordingStop() {
+
                 liveLoader.style.display = 'block';
                 const blob = new Blob(recordedChunks, { type: 'video/webm' });
                 const formData = new FormData();
