@@ -8,8 +8,8 @@ import atexit
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
-# THE FIX: Use a relative import because `app` is now a package
-from app.camera_predictor import CameraPredictor
+# THE FIX: The dot makes this a relative import, which is required by Gunicorn
+from .camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -111,8 +111,7 @@ def cleanup():
     if predictor:
         predictor.release_camera()
     for fname in os.listdir(UPLOAD_FOLDER):
-        try:
-            os.remove(os.path.join(UPLOAD_FOLDER, fname))
+        try: os.remove(os.path.join(UPLOAD_FOLDER, fname))
         except: pass
 atexit.register(cleanup)
 
