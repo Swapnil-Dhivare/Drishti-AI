@@ -42,6 +42,11 @@ except Exception as e:
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Health route
+@app.route("/healthz")
+def health_check():
+    return "ok", 200
+
 
 # --- Web & API Routes ---
 @app.route('/')
