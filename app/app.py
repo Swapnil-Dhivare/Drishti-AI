@@ -9,7 +9,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
 # THE FIX: Use a relative import because `app` is now a package
-from .camera_predictor import CameraPredictor
+from app.camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
