@@ -1,1 +1,1 @@
-web: python -m gunicorn "app.app:app"
+web: gunicorn --workers 2 --threads 2 --timeout 120 "app.app:app"
