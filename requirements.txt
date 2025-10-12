@@ -6,6 +6,7 @@ opencv-python-headless
 werkzeug
 scikit-learn
 mediapipe
+gunicorn
 #If you want to create the model from scratch:
 
 #xgboost
