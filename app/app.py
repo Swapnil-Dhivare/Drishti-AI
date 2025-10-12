@@ -8,7 +8,8 @@ import atexit
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
-from .camera_predictor import CameraPredictor
+# Import the class directly, Python will handle the path
+from camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -23,7 +24,6 @@ os.makedirs(LEARN_VIDEOS_FOLDER, exist_ok=True)
 
 # --- Background Task Management ---
 tasks = {}
-
 def process_video_task(task_id, video_path):
     try:
         result = predictor.predict_from_video(video_path)
@@ -61,7 +61,6 @@ def get_learn_data():
         })
     return jsonify(learn_data)
 
-# --- Camera Feed Routes ---
 @app.route('/video_feed')
 def video_feed():
     if predictor is None: return "Model not loaded", 500
@@ -69,7 +68,6 @@ def video_feed():
 
 @app.route('/stop_feed', methods=['POST'])
 def stop_feed():
-    """Endpoint to gracefully stop the camera."""
     if predictor:
         predictor.release_camera()
     return jsonify({"status": "Camera feed stopped"})
@@ -79,7 +77,6 @@ def get_prediction():
     if predictor is None: return jsonify({"predicted_sign": "Model Error"}), 500
     return jsonify(predictor.predict_from_buffer())
 
-# --- File Upload Routes ---
 @app.route('/api/analyze', methods=['POST'])
 def start_analysis():
     if predictor is None: return jsonify({"error": "Model is not loaded."}), 500
@@ -110,7 +107,6 @@ def get_result(task_id):
         return jsonify({"status": "failed", "error": error})
     return jsonify({"status": "processing"})
 
-# --- Cleanup ---
 def cleanup():
     if predictor:
         predictor.release_camera()
