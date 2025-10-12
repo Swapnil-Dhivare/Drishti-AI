@@ -39,16 +39,11 @@ class CameraPredictor:
             min_tracking_confidence=0.5
         )
 
-        # --- Real-time Prediction State ---
-        self.landmark_buffer = deque(maxlen=30)
-        self.current_sign = "---"
-        self.motion_threshold = 0.0015
-        self.confidence_threshold = 0.50
-
     def get_class_names(self):
         return sorted(self.le.classes_)
 
     def _extract_landmarks(self, frame):
+        """Internal method to extract landmark features from a single frame."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.holistic.process(rgb)
         lm = []
@@ -66,6 +61,7 @@ class CameraPredictor:
         return np.array(lm, dtype=np.float32)
 
     def create_advanced_feature_vector(self, sequence):
+        """Creates the advanced feature vector with temporal information."""
         seq_scaled = self.scaler_frames.transform(sequence)
         seq_pca = self.pca.transform(seq_scaled)
         mean=seq_pca.mean(axis=0); std=seq_pca.std(axis=0)
@@ -77,42 +73,8 @@ class CameraPredictor:
             v_mean=np.zeros(self.pca.n_components_); v_std=np.zeros(self.pca.n_components_)
         return np.concatenate([mean, std, start_pos, mid_pos, end_pos, v_mean, v_std])
 
-    def predict_from_live_frame(self, frame):
-        """Processes a single frame from the browser and updates the prediction state."""
-        landmarks = self._extract_landmarks(frame)
-        self.landmark_buffer.append(landmarks)
-
-        motion_magnitude = 0.0
-        motion_detected = False
-
-        if len(self.landmark_buffer) < self.landmark_buffer.maxlen:
-            return {"predicted_sign": "Collecting...", "diagnostics": {"motion_magnitude": 0, "motion_detected": False}}
-
-        try:
-            sequence = np.array(self.landmark_buffer)
-            motion_magnitude = np.mean(np.std(sequence[:, :84], axis=0))
-            motion_detected = motion_magnitude >= self.motion_threshold
-
-            if not motion_detected:
-                self.current_sign = "---"
-            else:
-                feature_vector = self.create_advanced_feature_vector(sequence)
-                final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
-                proba = self.clf.predict_proba(final_features)[0]
-                conf = np.max(proba)
-                
-                if conf >= self.confidence_threshold:
-                    sign = self.le.inverse_transform([np.argmax(proba)])[0]
-                    self.current_sign = sign
-            
-            return {
-                "predicted_sign": self.current_sign,
-                "diagnostics": { "motion_magnitude": motion_magnitude, "motion_detected": motion_detected }
-            }
-        except Exception as e:
-            return {"predicted_sign": "Error"}
-
     def predict_from_video(self, video_path: str, threshold: float = 0.3):
+        """Performs end-to-end prediction on a video file (uploaded or recorded)."""
         landmarks_list = []
         cap = cv2.VideoCapture(video_path)
         while True:
@@ -124,7 +86,15 @@ class CameraPredictor:
         if not landmarks_list: raise RuntimeError("No landmarks detected in video.")
         sequence = np.stack(landmarks_list)
         if sequence.shape[1] != self.standard_dim:
-            raise ValueError(f"Landmark dimension mismatch. Expected {self.standard_dim}, got {sequence.shape[1]}")
+            # This handles any lingering dimension mismatches gracefully
+            logger.warning(f"Conforming landmark dimension from {sequence.shape[1]} to {self.standard_dim}.")
+            if sequence.shape[1] > self.standard_dim:
+                sequence = sequence[:, :self.standard_dim]
+            else:
+                padded = np.zeros((sequence.shape[0], self.standard_dim), dtype=np.float32)
+                padded[:, :sequence.shape[1]] = sequence
+                sequence = padded
+
         feature_vector = self.create_advanced_feature_vector(sequence)
         final_features = self.scaler_feats.transform(feature_vector.reshape(1, -1))
         proba = self.clf.predict_proba(final_features)[0]

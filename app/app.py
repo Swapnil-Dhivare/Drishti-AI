@@ -1,11 +1,9 @@
 import os
 import uuid
 import threading
-from flask import Flask, request, jsonify, render_template, Response, url_for
+from flask import Flask, request, jsonify, render_template, url_for
 import logging
 import atexit
-import cv2
-import numpy as np
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
@@ -18,7 +16,7 @@ app = Flask(__name__)
 # --- Configuration ---
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 UPLOAD_FOLDER = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv'}
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'wmv', 'webm'} # Added webm for browser recordings
 LEARN_VIDEOS_FOLDER = os.path.join(app.root_path, 'static', 'learn_videos')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(LEARN_VIDEOS_FOLDER, exist_ok=True)
@@ -51,7 +49,6 @@ def home():
 
 @app.route('/healthz')
 def healthz():
-    """Render's required health check endpoint."""
     return "OK", 200
 
 @app.route('/api/learn-data')
@@ -67,24 +64,7 @@ def get_learn_data():
         })
     return jsonify(learn_data)
 
-# --- NEW Camera Frame Prediction Route ---
-@app.route('/api/predict_frame', methods=['POST'])
-def predict_frame():
-    if predictor is None: return jsonify({"predicted_sign": "Model Error"}), 500
-    file = request.files.get('frame')
-    if not file: return jsonify({"error": "No frame data received."}), 400
-    try:
-        img_bytes = file.read()
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        # The JS now sends a pre-flipped image, so no need to flip here.
-        result = predictor.predict_from_live_frame(frame)
-        return jsonify(result)
-    except Exception as e:
-        logging.error(f"Error processing frame: {e}")
-        return jsonify({"predicted_sign": "Processing Error"}), 500
-
-# --- File Upload Routes ---
+# --- UNIFIED Analysis Route for Uploads and Recordings ---
 @app.route('/api/analyze', methods=['POST'])
 def start_analysis():
     if predictor is None: return jsonify({"error": "Model is not loaded."}), 500
@@ -92,13 +72,18 @@ def start_analysis():
     file = request.files['video']
     if file.filename == '' or not allowed_file(file.filename):
         return jsonify({"error": "Invalid or no file selected."}), 400
+    
+    # Use a unique filename to prevent conflicts
     filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
     temp_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(temp_path)
+    
     task_id = str(uuid.uuid4())
     tasks[task_id] = {'status': 'processing'}
+    
     thread = threading.Thread(target=process_video_task, args=(task_id, temp_path))
     thread.start()
+    
     return jsonify({"task_id": task_id})
 
 @app.route('/api/result/<task_id>', methods=['GET'])
@@ -121,7 +106,6 @@ def cleanup():
         try: os.remove(os.path.join(UPLOAD_FOLDER, fname))
         except: pass
 atexit.register(cleanup)
-
 
 if __name__ == '__main__':
     if predictor is None:
