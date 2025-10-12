@@ -8,7 +8,7 @@ import atexit
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
-from camera_predictor import CameraPredictor
+from .camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
