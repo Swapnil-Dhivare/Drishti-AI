@@ -8,7 +8,7 @@ import atexit
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GLOG_minloglevel'] = '3'
 
-# Import the class directly, Python will handle the path
+# THE FIX: Changed back to a direct import because we now run from the 'app' directory
 from camera_predictor import CameraPredictor
 from werkzeug.utils import secure_filename
 
